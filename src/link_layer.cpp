@@ -61,6 +61,9 @@ std::vector<uint8_t> FrameCodec::encode(const std::vector<uint8_t>& payload,
     return frame;
 }
 
+FrameDecoder::FrameDecoder()
+    : params_(FrameCodec::Parameters{}) {}
+
 FrameDecoder::FrameDecoder(const FrameCodec::Parameters& params)
     : params_(params) {}
 

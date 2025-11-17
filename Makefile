@@ -5,7 +5,7 @@ LDFLAGS =
 
 # Targets
 LIBRARY = libspi.a
-EXAMPLE = example
+EXAMPLE_BIN = spi_example
 
 SRC_DIR = src
 EXAMPLE_DIR = example
@@ -18,7 +18,7 @@ EXAMPLE_SOURCES = $(EXAMPLE_DIR)/example.cpp
 EXAMPLE_OBJECTS = $(EXAMPLE_SOURCES:.cpp=.o)
 
 # Default target
-all: $(LIBRARY) $(EXAMPLE)
+all: $(LIBRARY) $(EXAMPLE_BIN)
 
 # Build static library
 $(LIBRARY): $(LIB_OBJECTS)
@@ -26,9 +26,9 @@ $(LIBRARY): $(LIB_OBJECTS)
 	@echo "Built library: $(LIBRARY)"
 
 # Build example
-$(EXAMPLE): $(EXAMPLE_OBJECTS) $(LIBRARY)
+$(EXAMPLE_BIN): $(EXAMPLE_OBJECTS) $(LIBRARY)
 	$(CXX) $(CXXFLAGS) -o $@ $(EXAMPLE_OBJECTS) $(LIBRARY) $(LDFLAGS)
-	@echo "Built example: $(EXAMPLE)"
+	@echo "Built example: $(EXAMPLE_BIN)"
 
 # Compile object files
 $(SRC_DIR)/%.o: $(SRC_DIR)/%.cpp
@@ -39,7 +39,7 @@ $(EXAMPLE_DIR)/%.o: $(EXAMPLE_DIR)/%.cpp
 
 # Clean build artifacts
 clean:
-	rm -f $(LIB_OBJECTS) $(EXAMPLE_OBJECTS) $(LIBRARY) $(EXAMPLE)
+	rm -f $(LIB_OBJECTS) $(EXAMPLE_OBJECTS) $(LIBRARY) $(EXAMPLE_BIN)
 	@echo "Cleaned build artifacts"
 
 .PHONY: all clean

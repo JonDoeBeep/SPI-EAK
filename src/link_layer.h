@@ -14,12 +14,16 @@ public:
     };
 
     static std::vector<uint8_t> encode(const std::vector<uint8_t>& payload,
-                                       const Parameters& params = Parameters{});
+                                       const Parameters& params);
+    static std::vector<uint8_t> encode(const std::vector<uint8_t>& payload) {
+        return encode(payload, Parameters{});
+    }
 };
 
 class FrameDecoder {
 public:
-    explicit FrameDecoder(const FrameCodec::Parameters& params = FrameCodec::Parameters{});
+    FrameDecoder();
+    explicit FrameDecoder(const FrameCodec::Parameters& params);
 
     /**
      * Push a single byte from the SPI stream into the decoder.
