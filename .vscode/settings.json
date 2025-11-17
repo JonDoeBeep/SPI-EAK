@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "xlocmes": "cpp",
+        "stdexcept": "cpp",
+        "vector": "cpp"
+    }
+}
