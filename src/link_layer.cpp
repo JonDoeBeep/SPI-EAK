@@ -91,10 +91,20 @@ FrameCodec::Result FrameCodec::encode(const std::vector<uint8_t>& payload,
 }
 
 FrameDecoder::FrameDecoder()
-    : options_(Options{}) {}
+    : options_(Options{}) {
+    if (options_.max_frame_bytes == 0) {
+        options_.max_frame_bytes = 2048;
+    }
+    buffer_.reserve(options_.max_frame_bytes);
+}
 
 FrameDecoder::FrameDecoder(const Options& options)
-    : options_(options) {}
+    : options_(options) {
+    if (options_.max_frame_bytes == 0) {
+        throw std::invalid_argument("FrameDecoder max_frame_bytes must be non-zero");
+    }
+    buffer_.reserve(options_.max_frame_bytes);
+}
 
 FrameDecoder::Result FrameDecoder::push(uint8_t byte, std::vector<uint8_t>& out_frame) {
     Result result;
