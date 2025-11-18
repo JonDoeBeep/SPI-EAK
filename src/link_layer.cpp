@@ -67,23 +67,27 @@ FrameDecoder::FrameDecoder()
 FrameDecoder::FrameDecoder(const FrameCodec::Parameters& params)
     : params_(params) {}
 
-bool FrameDecoder::push(uint8_t byte, std::vector<uint8_t>& out_frame) {
+FrameDecoder::Result FrameDecoder::push(uint8_t byte, std::vector<uint8_t>& out_frame) {
+    Result result;
+
     if (byte == params_.start_byte) {
         buffer_.clear();
         in_frame_ = true;
         escape_next_ = false;
-        return false;
+        return result;
     }
 
     if (!in_frame_) {
-        return false;
+        return result;
     }
 
     if (byte == params_.stop_byte) {
         if (params_.enable_crc16) {
             if (buffer_.size() < 2) {
                 reset();
-                throw std::runtime_error("Frame shorter than CRC size");
+                result.frame_dropped = true;
+                result.drop_reason = Result::DropReason::TooShortForCrc;
+                return result;
             }
             const size_t payload_size = buffer_.size() - 2;
             std::vector<uint8_t> payload(buffer_.begin(), buffer_.begin() + payload_size);
@@ -91,29 +95,32 @@ bool FrameDecoder::push(uint8_t byte, std::vector<uint8_t>& out_frame) {
             received_crc |= buffer_[payload_size + 1];
             if (crc16_ccitt(payload) != received_crc) {
                 reset();
-                throw std::runtime_error("CRC mismatch in frame");
+                result.frame_dropped = true;
+                result.drop_reason = Result::DropReason::CrcMismatch;
+                return result;
             }
             out_frame = std::move(payload);
         } else {
             out_frame = buffer_;
         }
         reset();
-        return true;
+        result.frame_ready = true;
+        return result;
     }
 
     if (escape_next_) {
         buffer_.push_back(static_cast<uint8_t>(byte ^ 0x20));
         escape_next_ = false;
-        return false;
+        return result;
     }
 
     if (byte == params_.escape_byte) {
         escape_next_ = true;
-        return false;
+        return result;
     }
 
     buffer_.push_back(byte);
-    return false;
+    return result;
 }
 
 void FrameDecoder::reset() {

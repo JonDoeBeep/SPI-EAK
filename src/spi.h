@@ -97,14 +97,17 @@ public:
     [[nodiscard]] uint8_t getBitsPerWord() const;
 
     void reconfigure(const Config& config);
+    void applyConfig();
     [[nodiscard]] const Config& currentConfig() const noexcept { return config_; }
 
 private:
     void close(); // Private helper for RAII
     void configureDevice();
+    void ensureConfigured();
 
     int fd; // File descriptor for the device
     Config config_;
+    bool config_dirty_ = false;
 };
 
 #endif // SPI_H

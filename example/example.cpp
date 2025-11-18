@@ -23,7 +23,15 @@ int main() {
         std::vector<uint8_t> decoded;
         bool frame_complete = false;
         for (uint8_t byte : rx_frame) {
-            frame_complete = decoder.push(byte, decoded) || frame_complete;
+            auto result = decoder.push(byte, decoded);
+            if (result.frame_dropped) {
+                std::cout << "Frame dropped due to "
+                          << (result.drop_reason == FrameDecoder::Result::DropReason::CrcMismatch
+                                  ? "CRC mismatch"
+                                  : "too short for CRC")
+                          << std::endl;
+            }
+            frame_complete = result.frame_ready || frame_complete;
         }
 
         std::cout << "Sent frame (" << encoded.size() << " bytes):";

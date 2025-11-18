@@ -36,7 +36,11 @@ int main() {
         FrameDecoder decoder(params);
         std::vector<uint8_t> decoded;
         for (uint8_t byte : rx_frame) {
-            if (decoder.push(byte, decoded)) {
+            auto result = decoder.push(byte, decoded);
+            if (result.frame_dropped) {
+                // handle corruption (log, metrics, retry, etc.)
+            }
+            if (result.frame_ready) {
                 // decoded now holds a full variable-length payload
             }
         }
@@ -47,7 +51,7 @@ int main() {
 }
 ```
 
-This project targets Linux hosts (e.g., Raspberry Pi), relying on the `spidev` userspace driver.
+This project targets Linux hosts (e.g., Raspberry Pi), relying on the `spidev` userspace driver. Calls to `setSpeed`, `setMode`, and `setBitsPerWord` are batched and automatically flushed before the next transfer (or immediately via `applyConfig()`), so multiple configuration edits cost only one set of ioctl calls.
 
 ### Variable-length framing
 

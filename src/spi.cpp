@@ -22,6 +22,7 @@ SPI::SPI(const Config& config)
 
     try {
         configureDevice();
+        config_dirty_ = false;
     } catch (...) {
         ::close(fd);
         fd = -1;
@@ -37,9 +38,11 @@ SPI::~SPI() {
 SPI::SPI(SPI&& other) noexcept
     : fd(other.fd)
     , config_(std::move(other.config_))
+    , config_dirty_(other.config_dirty_)
 {
     // Invalidate the other object so its destructor does nothing
     other.fd = -1;
+    other.config_dirty_ = false;
 }
 
 // Move assignment operator
@@ -50,9 +53,11 @@ SPI& SPI::operator=(SPI&& other) noexcept {
         // Steal resources from the other object
         fd = other.fd;
         config_ = std::move(other.config_);
+        config_dirty_ = other.config_dirty_;
 
         // Invalidate the other object
         other.fd = -1;
+        other.config_dirty_ = false;
     }
     return *this;
 }
@@ -84,6 +89,8 @@ void SPI::transfer(uint8_t* rx_data, const uint8_t* tx_data, size_t length) {
         throw std::invalid_argument("Invalid buffer pointer provided to SPI transfer");
     }
 
+    ensureConfigured();
+
     struct spi_ioc_transfer transfer_desc;
     memset(&transfer_desc, 0, sizeof(transfer_desc));
     
@@ -107,6 +114,8 @@ void SPI::transfer(const std::vector<Segment>& segments) {
     if (segments.empty()) {
         return;
     }
+
+    ensureConfigured();
 
     std::vector<spi_ioc_transfer> ops(segments.size());
     for (size_t i = 0; i < segments.size(); ++i) {
@@ -136,30 +145,17 @@ void SPI::transfer(const std::vector<Segment>& segments) {
 
 void SPI::setSpeed(uint32_t hz) {
     config_.speed_hz = hz;
-    if (fd >= 0) {
-        if (ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &config_.speed_hz) < 0) {
-            throw std::runtime_error("Failed to set SPI speed: " + std::string(strerror(errno)));
-        }
-    }
+    config_dirty_ = true;
 }
 
 void SPI::setMode(Mode new_mode) {
     config_.mode = new_mode;
-    uint8_t raw_mode = static_cast<uint8_t>(config_.mode);
-    if (fd >= 0) {
-        if (ioctl(fd, SPI_IOC_WR_MODE, &raw_mode) < 0) {
-            throw std::runtime_error("Failed to set SPI mode: " + std::string(strerror(errno)));
-        }
-    }
+    config_dirty_ = true;
 }
 
 void SPI::setBitsPerWord(uint8_t bits) {
     config_.bits_per_word = bits;
-    if (fd >= 0) {
-        if (ioctl(fd, SPI_IOC_WR_BITS_PER_WORD, &config_.bits_per_word) < 0) {
-            throw std::runtime_error("Failed to set bits per word: " + std::string(strerror(errno)));
-        }
-    }
+    config_dirty_ = true;
 }
 
 uint32_t SPI::getSpeed() const {
@@ -177,6 +173,11 @@ uint8_t SPI::getBitsPerWord() const {
 void SPI::reconfigure(const Config& config) {
     config_ = config;
     configureDevice();
+    config_dirty_ = false;
+}
+
+void SPI::applyConfig() {
+    ensureConfigured();
 }
 
 void SPI::configureDevice() {
@@ -194,4 +195,15 @@ void SPI::configureDevice() {
     if (ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &config_.speed_hz) < 0) {
         throw std::runtime_error("Failed to set max speed: " + std::string(strerror(errno)));
     }
+    config_dirty_ = false;
+}
+
+void SPI::ensureConfigured() {
+    if (fd < 0) {
+        throw std::logic_error("SPI device is not open (was it moved from?)");
+    }
+    if (!config_dirty_) {
+        return;
+    }
+    configureDevice();
 }

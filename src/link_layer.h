@@ -25,11 +25,23 @@ public:
     FrameDecoder();
     explicit FrameDecoder(const FrameCodec::Parameters& params);
 
+    struct Result {
+        enum class DropReason {
+            None,
+            TooShortForCrc,
+            CrcMismatch
+        };
+
+        bool frame_ready = false;
+        bool frame_dropped = false;
+        DropReason drop_reason = DropReason::None;
+    };
+
     /**
      * Push a single byte from the SPI stream into the decoder.
-     * Returns true if a full frame has been reconstructed and stored in out_frame.
+     * Returns Result indicating whether a frame completed or was dropped.
      */
-    bool push(uint8_t byte, std::vector<uint8_t>& out_frame);
+    Result push(uint8_t byte, std::vector<uint8_t>& out_frame);
 
     void reset();
 
