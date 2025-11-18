@@ -1,4 +1,9 @@
 #include "spi.h"
+
+#ifndef __linux__
+#error "SPI-EAK currently requires Linux with spidev support"
+#endif
+
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
@@ -7,6 +12,8 @@
 #include <cerrno>
 #include <utility>
 #include <vector>
+
+namespace spi_eak {
 
 SPI::SPI(const std::string& device, uint32_t speed, Mode mode, uint8_t bits)
     : SPI(Config{device, speed, mode, bits}) {}
@@ -207,3 +214,5 @@ void SPI::ensureConfigured() {
     }
     configureDevice();
 }
+
+} // namespace spi_eak

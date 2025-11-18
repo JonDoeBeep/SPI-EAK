@@ -2,6 +2,8 @@
 
 #include <stdexcept>
 
+namespace spi_eak {
+
 namespace {
 uint16_t crc16_ccitt(const std::vector<uint8_t>& data) {
     uint16_t crc = 0xFFFF;
@@ -32,45 +34,51 @@ void appendEscaped(std::vector<uint8_t>& frame,
 }
 }
 
-std::vector<uint8_t> FrameCodec::encode(const std::vector<uint8_t>& payload,
-                                         const Parameters& params) {
+FrameCodec::Result FrameCodec::encode(const std::vector<uint8_t>& payload,
+                                      const Parameters& params,
+                                      std::vector<uint8_t>& out_frame) {
+    Result result;
     if (params.start_byte == params.stop_byte) {
-        throw std::invalid_argument("Start and stop bytes must differ");
+        result.ok = false;
+        result.error = EncodeError::InvalidStartStop;
+        return result;
     }
     if (params.escape_byte == params.start_byte || params.escape_byte == params.stop_byte) {
-        throw std::invalid_argument("Escape byte cannot match start/stop bytes");
+        result.ok = false;
+        result.error = EncodeError::InvalidEscape;
+        return result;
     }
 
-    std::vector<uint8_t> frame;
-    frame.reserve(payload.size() + 6); // rough guess for escapes + crc
-    frame.push_back(params.start_byte);
+    out_frame.clear();
+    out_frame.reserve(payload.size() + 6); // rough guess for escapes + crc
+    out_frame.push_back(params.start_byte);
 
     for (uint8_t byte : payload) {
-        appendEscaped(frame, byte, params.escape_byte, params.start_byte, params.stop_byte);
+        appendEscaped(out_frame, byte, params.escape_byte, params.start_byte, params.stop_byte);
     }
 
     if (params.enable_crc16) {
         uint16_t crc = crc16_ccitt(payload);
-        appendEscaped(frame, static_cast<uint8_t>((crc >> 8) & 0xFF),
+        appendEscaped(out_frame, static_cast<uint8_t>((crc >> 8) & 0xFF),
                       params.escape_byte, params.start_byte, params.stop_byte);
-        appendEscaped(frame, static_cast<uint8_t>(crc & 0xFF),
+        appendEscaped(out_frame, static_cast<uint8_t>(crc & 0xFF),
                       params.escape_byte, params.start_byte, params.stop_byte);
     }
 
-    frame.push_back(params.stop_byte);
-    return frame;
+    out_frame.push_back(params.stop_byte);
+    return result;
 }
 
 FrameDecoder::FrameDecoder()
-    : params_(FrameCodec::Parameters{}) {}
+    : options_(Options{}) {}
 
-FrameDecoder::FrameDecoder(const FrameCodec::Parameters& params)
-    : params_(params) {}
+FrameDecoder::FrameDecoder(const Options& options)
+    : options_(options) {}
 
 FrameDecoder::Result FrameDecoder::push(uint8_t byte, std::vector<uint8_t>& out_frame) {
     Result result;
 
-    if (byte == params_.start_byte) {
+    if (byte == options_.params.start_byte) {
         buffer_.clear();
         in_frame_ = true;
         escape_next_ = false;
@@ -81,8 +89,8 @@ FrameDecoder::Result FrameDecoder::push(uint8_t byte, std::vector<uint8_t>& out_
         return result;
     }
 
-    if (byte == params_.stop_byte) {
-        if (params_.enable_crc16) {
+    if (byte == options_.params.stop_byte) {
+        if (options_.params.enable_crc16) {
             if (buffer_.size() < 2) {
                 reset();
                 result.frame_dropped = true;
@@ -109,16 +117,29 @@ FrameDecoder::Result FrameDecoder::push(uint8_t byte, std::vector<uint8_t>& out_
     }
 
     if (escape_next_) {
+        if (options_.max_frame_bytes && buffer_.size() >= options_.max_frame_bytes) {
+            reset();
+            result.frame_dropped = true;
+            result.drop_reason = Result::DropReason::FrameTooLarge;
+            escape_next_ = false;
+            return result;
+        }
         buffer_.push_back(static_cast<uint8_t>(byte ^ 0x20));
         escape_next_ = false;
         return result;
     }
 
-    if (byte == params_.escape_byte) {
+    if (byte == options_.params.escape_byte) {
         escape_next_ = true;
         return result;
     }
 
+    if (options_.max_frame_bytes && buffer_.size() >= options_.max_frame_bytes) {
+        reset();
+        result.frame_dropped = true;
+        result.drop_reason = Result::DropReason::FrameTooLarge;
+        return result;
+    }
     buffer_.push_back(byte);
     return result;
 }
@@ -128,3 +149,5 @@ void FrameDecoder::reset() {
     escape_next_ = false;
     buffer_.clear();
 }
+
+} // namespace spi_eak

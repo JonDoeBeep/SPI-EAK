@@ -7,6 +7,8 @@
 #include <vector>
 #include <stdexcept>
 
+namespace spi_eak {
+
 class SPI {
 public:
     // SPI modes (CPOL | CPHA)
@@ -109,5 +111,7 @@ private:
     Config config_;
     bool config_dirty_ = false;
 };
+
+} // namespace spi_eak
 
 #endif // SPI_H

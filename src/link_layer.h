@@ -1,8 +1,11 @@
 #ifndef LINK_LAYER_H
 #define LINK_LAYER_H
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
+
+namespace spi_eak {
 
 class FrameCodec {
 public:
@@ -13,23 +16,43 @@ public:
         bool enable_crc16 = true;
     };
 
-    static std::vector<uint8_t> encode(const std::vector<uint8_t>& payload,
-                                       const Parameters& params);
-    static std::vector<uint8_t> encode(const std::vector<uint8_t>& payload) {
-        return encode(payload, Parameters{});
+    enum class EncodeError {
+        None,
+        InvalidStartStop,
+        InvalidEscape
+    };
+
+    struct Result {
+        bool ok = true;
+        EncodeError error = EncodeError::None;
+    };
+
+    static Result encode(const std::vector<uint8_t>& payload,
+                         const Parameters& params,
+                         std::vector<uint8_t>& out_frame);
+
+    static Result encode(const std::vector<uint8_t>& payload,
+                         std::vector<uint8_t>& out_frame) {
+        return encode(payload, Parameters{}, out_frame);
     }
 };
 
 class FrameDecoder {
 public:
+    struct Options {
+        FrameCodec::Parameters params;
+        std::size_t max_frame_bytes = 2048;
+    };
+
     FrameDecoder();
-    explicit FrameDecoder(const FrameCodec::Parameters& params);
+    explicit FrameDecoder(const Options& options);
 
     struct Result {
         enum class DropReason {
             None,
             TooShortForCrc,
-            CrcMismatch
+            CrcMismatch,
+            FrameTooLarge
         };
 
         bool frame_ready = false;
@@ -46,10 +69,12 @@ public:
     void reset();
 
 private:
-    FrameCodec::Parameters params_;
+    Options options_;
     bool in_frame_ = false;
     bool escape_next_ = false;
     std::vector<uint8_t> buffer_;
 };
+
+} // namespace spi_eak
 
 #endif // LINK_LAYER_H
