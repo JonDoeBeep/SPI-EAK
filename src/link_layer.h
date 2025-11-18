@@ -25,15 +25,14 @@ public:
     struct Result {
         bool ok = true;
         EncodeError error = EncodeError::None;
+        std::vector<uint8_t> frame;
     };
 
     static Result encode(const std::vector<uint8_t>& payload,
-                         const Parameters& params,
-                         std::vector<uint8_t>& out_frame);
+                         const Parameters& params);
 
-    static Result encode(const std::vector<uint8_t>& payload,
-                         std::vector<uint8_t>& out_frame) {
-        return encode(payload, Parameters{}, out_frame);
+    static Result encode(const std::vector<uint8_t>& payload) {
+        return encode(payload, Parameters{});
     }
 };
 

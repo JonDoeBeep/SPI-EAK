@@ -29,15 +29,14 @@ int main() {
         spi_eak::FrameCodec::Parameters params; // Start=0x7E, Stop=0x7F, Escape=0x7D, CRC16 enabled
         std::vector<uint8_t> payload = {/* metadata, commands, etc. */};
 
-        std::vector<uint8_t> framed;
-        auto encode_result = spi_eak::FrameCodec::encode(payload, params, framed);
+        auto encode_result = spi_eak::FrameCodec::encode(payload, params);
         if (!encode_result.ok) {
             // handle invalid framing configuration
             return 1;
         }
 
         // SPI is full-duplex, so RX is the same size as TX
-        std::vector<uint8_t> rx_frame = spi.transfer(framed);
+        std::vector<uint8_t> rx_frame = spi.transfer(encode_result.frame);
 
         spi_eak::FrameDecoder::Options decoder_opts;
         decoder_opts.params = params;

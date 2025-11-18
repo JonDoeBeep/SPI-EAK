@@ -20,8 +20,7 @@ int main() {
 
         // Example payload
         std::vector<uint8_t> payload = {0x42, 0x01, 0x10, 0x00, 0x7E};
-        std::vector<uint8_t> encoded;
-        auto encode_result = FrameCodec::encode(payload, frame_params, encoded);
+        auto encode_result = FrameCodec::encode(payload, frame_params);
         if (!encode_result.ok) {
             std::cerr << "Failed to encode frame: "
                   << (encode_result.error == FrameCodec::EncodeError::InvalidStartStop
@@ -32,7 +31,7 @@ int main() {
         }
 
         // Perform full duplex transfer (tx and rx sizes must match on SPI)
-        std::vector<uint8_t> rx_frame = spi.transfer(encoded);
+        std::vector<uint8_t> rx_frame = spi.transfer(encode_result.frame);
 
         std::vector<uint8_t> decoded;
         bool frame_complete = false;
@@ -59,8 +58,8 @@ int main() {
             frame_complete = result.frame_ready || frame_complete;
         }
 
-        std::cout << "Sent frame (" << encoded.size() << " bytes):";
-        for (auto byte : encoded) {
+        std::cout << "Sent frame (" << encode_result.frame.size() << " bytes):";
+        for (auto byte : encode_result.frame) {
             std::cout << " 0x" << std::hex << std::setw(2) << std::setfill('0')
                       << static_cast<int>(byte);
         }

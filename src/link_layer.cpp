@@ -35,8 +35,7 @@ void appendEscaped(std::vector<uint8_t>& frame,
 }
 
 FrameCodec::Result FrameCodec::encode(const std::vector<uint8_t>& payload,
-                                      const Parameters& params,
-                                      std::vector<uint8_t>& out_frame) {
+                                      const Parameters& params) {
     Result result;
     if (params.start_byte == params.stop_byte) {
         result.ok = false;
@@ -49,23 +48,23 @@ FrameCodec::Result FrameCodec::encode(const std::vector<uint8_t>& payload,
         return result;
     }
 
-    out_frame.clear();
-    out_frame.reserve(payload.size() + 6); // rough guess for escapes + crc
-    out_frame.push_back(params.start_byte);
+    result.frame.clear();
+    result.frame.reserve(payload.size() + 6); // rough guess for escapes + crc
+    result.frame.push_back(params.start_byte);
 
     for (uint8_t byte : payload) {
-        appendEscaped(out_frame, byte, params.escape_byte, params.start_byte, params.stop_byte);
+        appendEscaped(result.frame, byte, params.escape_byte, params.start_byte, params.stop_byte);
     }
 
     if (params.enable_crc16) {
         uint16_t crc = crc16_ccitt(payload);
-        appendEscaped(out_frame, static_cast<uint8_t>((crc >> 8) & 0xFF),
+        appendEscaped(result.frame, static_cast<uint8_t>((crc >> 8) & 0xFF),
                       params.escape_byte, params.start_byte, params.stop_byte);
-        appendEscaped(out_frame, static_cast<uint8_t>(crc & 0xFF),
+        appendEscaped(result.frame, static_cast<uint8_t>(crc & 0xFF),
                       params.escape_byte, params.start_byte, params.stop_byte);
     }
 
-    out_frame.push_back(params.stop_byte);
+    result.frame.push_back(params.stop_byte);
     return result;
 }
 
