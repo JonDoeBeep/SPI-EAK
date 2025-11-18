@@ -114,6 +114,9 @@ FrameDecoder::Result FrameDecoder::push(uint8_t byte, std::vector<uint8_t>& out_
         if (options_.params.enable_crc16) {
             if (buffer_.size() < 2) {
                 reset();
+                if (options_.max_frame_bytes) {
+                    buffer_.reserve(options_.max_frame_bytes);
+                }
                 result.frame_dropped = true;
                 result.drop_reason = Result::DropReason::TooShortForCrc;
                 return result;
@@ -123,6 +126,9 @@ FrameDecoder::Result FrameDecoder::push(uint8_t byte, std::vector<uint8_t>& out_
             received_crc |= buffer_[payload_size + 1];
             if (crc16_ccitt(buffer_.data(), payload_size) != received_crc) {
                 reset();
+                if (options_.max_frame_bytes) {
+                    buffer_.reserve(options_.max_frame_bytes);
+                }
                 result.frame_dropped = true;
                 result.drop_reason = Result::DropReason::CrcMismatch;
                 return result;
@@ -143,6 +149,9 @@ FrameDecoder::Result FrameDecoder::push(uint8_t byte, std::vector<uint8_t>& out_
     if (escape_next_) {
         if (options_.max_frame_bytes && buffer_.size() >= options_.max_frame_bytes) {
             reset();
+            if (options_.max_frame_bytes) {
+                buffer_.reserve(options_.max_frame_bytes);
+            }
             result.frame_dropped = true;
             result.drop_reason = Result::DropReason::FrameTooLarge;
             escape_next_ = false;
@@ -160,6 +169,9 @@ FrameDecoder::Result FrameDecoder::push(uint8_t byte, std::vector<uint8_t>& out_
 
     if (options_.max_frame_bytes && buffer_.size() >= options_.max_frame_bytes) {
         reset();
+        if (options_.max_frame_bytes) {
+            buffer_.reserve(options_.max_frame_bytes);
+        }
         result.frame_dropped = true;
         result.drop_reason = Result::DropReason::FrameTooLarge;
         return result;
