@@ -142,7 +142,8 @@ void SPI::transfer(const std::vector<Segment>& segments) {
         op.speed_hz = seg.speed_override_hz ? seg.speed_override_hz : config_.speed_hz;
         op.bits_per_word = seg.bits_override ? seg.bits_override : config_.bits_per_word;
         op.delay_usecs = seg.delay_override_usecs ? seg.delay_override_usecs : config_.delay_usecs;
-        op.cs_change = seg.cs_change ? 1 : config_.cs_change;
+        op.cs_change = seg.cs_change;
+
     }
 
     if (ioctl(fd, SPI_IOC_MESSAGE(ops.size()), ops.data()) < 0) {
