@@ -146,12 +146,8 @@ FrameDecoder::Result FrameDecoder::push(uint8_t byte, std::vector<uint8_t>& out_
             buffer_.resize(payload_size);
         }
 
-        out_frame.clear();
-        out_frame.swap(buffer_);
+        out_frame = buffer_;
         reset();
-        if (options_.max_frame_bytes) {
-            buffer_.reserve(options_.max_frame_bytes);
-        }
         result.frame_ready = true;
         return result;
     }
