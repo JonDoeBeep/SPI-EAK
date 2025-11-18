@@ -5,9 +5,10 @@
 namespace spi_eak {
 
 namespace {
-uint16_t crc16_ccitt(const std::vector<uint8_t>& data) {
+uint16_t crc16_ccitt(const uint8_t* data, std::size_t length) {
     uint16_t crc = 0xFFFF;
-    for (uint8_t byte : data) {
+    for (std::size_t idx = 0; idx < length; ++idx) {
+        uint8_t byte = data[idx];
         crc ^= static_cast<uint16_t>(byte) << 8;
         for (int i = 0; i < 8; ++i) {
             if (crc & 0x8000) {
@@ -18,6 +19,10 @@ uint16_t crc16_ccitt(const std::vector<uint8_t>& data) {
         }
     }
     return crc;
+}
+
+uint16_t crc16_ccitt(const std::vector<uint8_t>& data) {
+    return crc16_ccitt(data.data(), data.size());
 }
 
 void appendEscaped(std::vector<uint8_t>& frame,
@@ -89,6 +94,9 @@ FrameDecoder::Result FrameDecoder::push(uint8_t byte, std::vector<uint8_t>& out_
     }
 
     if (byte == options_.params.stop_byte) {
+        const uint8_t* payload_ptr = buffer_.data();
+        size_t payload_size = buffer_.size();
+
         if (options_.params.enable_crc16) {
             if (buffer_.size() < 2) {
                 reset();
@@ -96,20 +104,18 @@ FrameDecoder::Result FrameDecoder::push(uint8_t byte, std::vector<uint8_t>& out_
                 result.drop_reason = Result::DropReason::TooShortForCrc;
                 return result;
             }
-            const size_t payload_size = buffer_.size() - 2;
-            std::vector<uint8_t> payload(buffer_.begin(), buffer_.begin() + payload_size);
+            payload_size -= 2;
             uint16_t received_crc = static_cast<uint16_t>(buffer_[payload_size]) << 8;
             received_crc |= buffer_[payload_size + 1];
-            if (crc16_ccitt(payload) != received_crc) {
+            if (crc16_ccitt(payload_ptr, payload_size) != received_crc) {
                 reset();
                 result.frame_dropped = true;
                 result.drop_reason = Result::DropReason::CrcMismatch;
                 return result;
             }
-            out_frame = std::move(payload);
-        } else {
-            out_frame = buffer_;
         }
+
+        out_frame.assign(payload_ptr, payload_ptr + payload_size);
         reset();
         result.frame_ready = true;
         return result;

@@ -71,7 +71,7 @@ This project targets Linux hosts (e.g., Raspberry Pi), relying on the `spidev` u
 - Optional CRC-16 (enabled by default) to catch corruption before upper layers read metadata/commands.
 - Configurable maximum frame length (default 2 KiB) so a misbehaving peer cannot consume unbounded memory.
 
-The helpers are deterministic and allocation-free on the decode side once the buffer reserves the expected payload size, making them suitable for robotics control loops.
+The helpers are deterministic. `FrameDecoder::push` copies payload bytes directly into the caller-supplied `out_frame`; if you reserve the maximum payload size up front (e.g., `decoded.reserve(2048)`), the decode path stays allocation-free and predictable for robotics control loops.
 
 ## SPI Modes
 
