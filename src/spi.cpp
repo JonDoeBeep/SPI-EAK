@@ -10,10 +10,22 @@
 #include <linux/spi/spidev.h>
 #include <cstring>
 #include <cerrno>
+#include <limits>
+#include <system_error>
 #include <utility>
 #include <vector>
 
 namespace spi_eak {
+
+namespace {
+
+std::string errnoMessage(int err) {
+    return std::error_code(err, std::generic_category()).message();
+}
+
+constexpr uint32_t kMaxTransferLen = std::numeric_limits<uint32_t>::max();
+
+} // namespace
 
 SPI::SPI(const std::string& device, uint32_t speed, Mode mode, uint8_t bits)
     : SPI(Config{device, speed, mode, bits}) {}
@@ -24,7 +36,8 @@ SPI::SPI(const Config& config)
 {
     fd = ::open(config_.device.c_str(), O_RDWR);
     if (fd < 0) {
-        throw std::runtime_error("Failed to open SPI device '" + config_.device + "': " + std::string(strerror(errno)));
+        const int err = errno;
+        throw std::runtime_error("Failed to open SPI device '" + config_.device + "': " + errnoMessage(err));
     }
 
     try {
@@ -95,6 +108,9 @@ void SPI::transfer(uint8_t* rx_data, const uint8_t* tx_data, size_t length) {
     if (!tx_data || !rx_data) {
         throw std::invalid_argument("Invalid buffer pointer provided to SPI transfer");
     }
+    if (length > kMaxTransferLen) {
+        throw std::invalid_argument("SPI transfer length exceeds 32-bit ioctl limit");
+    }
 
     ensureConfigured();
 
@@ -110,7 +126,8 @@ void SPI::transfer(uint8_t* rx_data, const uint8_t* tx_data, size_t length) {
     transfer_desc.cs_change = config_.cs_change;
     
     if (ioctl(fd, SPI_IOC_MESSAGE(1), &transfer_desc) < 0) {
-        throw std::runtime_error("SPI transfer failed: " + std::string(strerror(errno)));
+        const int err = errno;
+        throw std::runtime_error("SPI transfer failed: " + errnoMessage(err));
     }
 }
 
@@ -125,10 +142,14 @@ void SPI::transfer(const std::vector<Segment>& segments) {
     ensureConfigured();
 
     std::vector<spi_ioc_transfer> ops(segments.size());
+    bool segment_sets_cs_change = false;
     for (size_t i = 0; i < segments.size(); ++i) {
         const auto& seg = segments[i];
         if (seg.length == 0) {
             throw std::invalid_argument("Segment length must be non-zero");
+        }
+        if (seg.length > kMaxTransferLen) {
+            throw std::invalid_argument("Segment length exceeds 32-bit ioctl limit");
         }
         if (!seg.tx_buffer && !seg.rx_buffer) {
             throw std::invalid_argument("At least one buffer pointer must be provided for SPI segment");
@@ -143,11 +164,17 @@ void SPI::transfer(const std::vector<Segment>& segments) {
         op.bits_per_word = seg.bits_override ? seg.bits_override : config_.bits_per_word;
         op.delay_usecs = seg.delay_override_usecs ? seg.delay_override_usecs : config_.delay_usecs;
         op.cs_change = seg.cs_change;
+        segment_sets_cs_change = segment_sets_cs_change || seg.cs_change;
 
     }
 
+    if (config_.cs_change && !segment_sets_cs_change && !ops.empty()) {
+        ops.back().cs_change = 1;
+    }
+
     if (ioctl(fd, SPI_IOC_MESSAGE(ops.size()), ops.data()) < 0) {
-        throw std::runtime_error("SPI multi-segment transfer failed: " + std::string(strerror(errno)));
+        const int err = errno;
+        throw std::runtime_error("SPI multi-segment transfer failed: " + errnoMessage(err));
     }
 }
 
@@ -179,9 +206,16 @@ uint8_t SPI::getBitsPerWord() const {
 }
 
 void SPI::reconfigure(const Config& config) {
+    const Config previous = config_;
     config_ = config;
-    configureDevice();
-    config_dirty_ = false;
+    config_dirty_ = true;
+    try {
+        configureDevice();
+    } catch (...) {
+        config_ = previous;
+        config_dirty_ = true;
+        throw;
+    }
 }
 
 void SPI::applyConfig() {
@@ -195,13 +229,16 @@ void SPI::configureDevice() {
 
     uint8_t raw_mode = static_cast<uint8_t>(config_.mode);
     if (ioctl(fd, SPI_IOC_WR_MODE, &raw_mode) < 0) {
-        throw std::runtime_error("Failed to set SPI mode: " + std::string(strerror(errno)));
+        const int err = errno;
+        throw std::runtime_error("Failed to set SPI mode: " + errnoMessage(err));
     }
     if (ioctl(fd, SPI_IOC_WR_BITS_PER_WORD, &config_.bits_per_word) < 0) {
-        throw std::runtime_error("Failed to set bits per word: " + std::string(strerror(errno)));
+        const int err = errno;
+        throw std::runtime_error("Failed to set bits per word: " + errnoMessage(err));
     }
     if (ioctl(fd, SPI_IOC_WR_MAX_SPEED_HZ, &config_.speed_hz) < 0) {
-        throw std::runtime_error("Failed to set max speed: " + std::string(strerror(errno)));
+        const int err = errno;
+        throw std::runtime_error("Failed to set max speed: " + errnoMessage(err));
     }
     config_dirty_ = false;
 }

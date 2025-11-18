@@ -3,6 +3,7 @@
         "xlocmes": "cpp",
         "stdexcept": "cpp",
         "vector": "cpp",
-        "array": "cpp"
+        "array": "cpp",
+        "system_error": "cpp"
     }
 }
