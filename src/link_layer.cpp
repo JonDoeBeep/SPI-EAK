@@ -111,9 +111,6 @@ FrameDecoder::Result FrameDecoder::push(uint8_t byte, std::vector<uint8_t>& out_
     }
 
     if (byte == options_.params.stop_byte) {
-        const uint8_t* payload_ptr = buffer_.data();
-        size_t payload_size = buffer_.size();
-
         if (options_.params.enable_crc16) {
             if (buffer_.size() < 2) {
                 reset();
@@ -121,19 +118,24 @@ FrameDecoder::Result FrameDecoder::push(uint8_t byte, std::vector<uint8_t>& out_
                 result.drop_reason = Result::DropReason::TooShortForCrc;
                 return result;
             }
-            payload_size -= 2;
+            const size_t payload_size = buffer_.size() - 2;
             uint16_t received_crc = static_cast<uint16_t>(buffer_[payload_size]) << 8;
             received_crc |= buffer_[payload_size + 1];
-            if (crc16_ccitt(payload_ptr, payload_size) != received_crc) {
+            if (crc16_ccitt(buffer_.data(), payload_size) != received_crc) {
                 reset();
                 result.frame_dropped = true;
                 result.drop_reason = Result::DropReason::CrcMismatch;
                 return result;
             }
+            buffer_.resize(payload_size);
         }
 
-        out_frame.assign(payload_ptr, payload_ptr + payload_size);
+        out_frame.clear();
+        out_frame.swap(buffer_);
         reset();
+        if (options_.max_frame_bytes) {
+            buffer_.reserve(options_.max_frame_bytes);
+        }
         result.frame_ready = true;
         return result;
     }
