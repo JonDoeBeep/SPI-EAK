@@ -2,6 +2,7 @@
     "files.associations": {
         "xlocmes": "cpp",
         "stdexcept": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "array": "cpp"
     }
 }

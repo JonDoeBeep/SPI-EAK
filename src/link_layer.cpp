@@ -1,22 +1,39 @@
 #include "link_layer.h"
 
+#include <array>
 #include <stdexcept>
 
 namespace spi_eak {
 
 namespace {
+
+constexpr uint16_t crc16_entry(uint8_t idx) {
+    uint16_t crc = static_cast<uint16_t>(idx) << 8;
+    for (int i = 0; i < 8; ++i) {
+        if (crc & 0x8000) {
+            crc = static_cast<uint16_t>((crc << 1) ^ 0x1021);
+        } else {
+            crc <<= 1;
+        }
+    }
+    return crc;
+}
+
+constexpr std::array<uint16_t, 256> makeCrc16Table() {
+    std::array<uint16_t, 256> table{};
+    for (std::size_t idx = 0; idx < table.size(); ++idx) {
+        table[idx] = crc16_entry(static_cast<uint8_t>(idx));
+    }
+    return table;
+}
+
+constexpr auto kCrc16Table = makeCrc16Table();
+
 uint16_t crc16_ccitt(const uint8_t* data, std::size_t length) {
     uint16_t crc = 0xFFFF;
     for (std::size_t idx = 0; idx < length; ++idx) {
-        uint8_t byte = data[idx];
-        crc ^= static_cast<uint16_t>(byte) << 8;
-        for (int i = 0; i < 8; ++i) {
-            if (crc & 0x8000) {
-                crc = static_cast<uint16_t>((crc << 1) ^ 0x1021);
-            } else {
-                crc <<= 1;
-            }
-        }
+        uint8_t tbl_idx = static_cast<uint8_t>((crc >> 8) ^ data[idx]);
+        crc = static_cast<uint16_t>((crc << 8) ^ kCrc16Table[tbl_idx]);
     }
     return crc;
 }
